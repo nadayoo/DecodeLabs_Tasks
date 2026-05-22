@@ -1,4 +1,4 @@
-# 🤖 DecodeLabs — Artificial Intelligence Training Kit
+# DecodeLabs  Artificial Intelligence Training Kit
 **Batch: 2026 | Powered by DecodeLabs**
 
 A hands-on industrial training series covering the core pillars of Artificial Intelligence — from rule-based chatbot logic, to supervised learning classification, to intelligent recommendation systems.
