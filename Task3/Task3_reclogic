@@ -1,0 +1,284 @@
+# ============================================================
+# Project 3: AI Recommendation Logic
+# DecodeLabs Industrial Training Kit - Batch 2026
+# System: Tech Stack Recommender
+# Method: TF-IDF Vectorization + Cosine Similarity
+# Pipeline: Ingestion → Scoring → Sorting → Filtering
+# ============================================================
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# ============================================================
+# DATASET: Job Roles as "Items" (raw_skills equivalent)
+# Each role has a tag string — the vocabulary space
+# ============================================================
+
+job_roles = [
+    {
+        "title": "Data Scientist",
+        "skills": "python sql machine_learning statistics data_analysis numpy pandas scikit_learn visualization tensorflow"
+    },
+    {
+        "title": "Machine Learning Engineer",
+        "skills": "python machine_learning deep_learning tensorflow pytorch neural_networks mlops docker kubernetes"
+    },
+    {
+        "title": "Data Engineer",
+        "skills": "python sql spark hadoop data_pipelines etl cloud aws kafka airflow"
+    },
+    {
+        "title": "Backend Developer",
+        "skills": "python java sql apis rest_api django flask databases docker git"
+    },
+    {
+        "title": "Frontend Developer",
+        "skills": "javascript html css react nodejs typescript ui_ux git responsive_design"
+    },
+    {
+        "title": "DevOps Engineer",
+        "skills": "aws docker kubernetes ci_cd linux bash git cloud automation jenkins"
+    },
+    {
+        "title": "Cloud Architect",
+        "skills": "aws azure cloud infrastructure terraform kubernetes docker networking security automation"
+    },
+    {
+        "title": "AI Research Scientist",
+        "skills": "python deep_learning pytorch tensorflow mathematics statistics research nlp computer_vision"
+    },
+    {
+        "title": "Cybersecurity Analyst",
+        "skills": "networking security linux penetration_testing firewalls encryption python risk_analysis siem"
+    },
+    {
+        "title": "Full Stack Developer",
+        "skills": "javascript python react nodejs django sql html css git docker"
+    },
+    {
+        "title": "NLP Engineer",
+        "skills": "python nlp deep_learning transformers bert huggingface pytorch tensorflow text_processing"
+    },
+    {
+        "title": "Computer Vision Engineer",
+        "skills": "python computer_vision deep_learning opencv tensorflow pytorch image_processing neural_networks"
+    },
+    {
+        "title": "Data Analyst",
+        "skills": "sql excel python statistics data_visualization tableau power_bi reporting pandas"
+    },
+    {
+        "title": "Mobile Developer",
+        "skills": "swift kotlin java react_native flutter android ios mobile_development apis"
+    },
+    {
+        "title": "Blockchain Developer",
+        "skills": "solidity ethereum smart_contracts web3 javascript python cryptography decentralized_apps"
+    },
+]
+
+df_roles = pd.DataFrame(job_roles)
+
+# ============================================================
+# STEP 1: INGESTION — Capture User State
+# Accept minimum 3 skills from the user
+# ============================================================
+
+def get_user_skills():
+    print("=" * 60)
+    print("  PROJECT 3 — AI TECH STACK RECOMMENDER")
+    print("  DecodeLabs | Batch 2026")
+    print("=" * 60)
+    print("\nAvailable skill examples:")
+    print("   python, sql, machine_learning, deep_learning, docker,")
+    print("   javascript, react, aws, kubernetes, tensorflow,")
+    print("   nlp, statistics, git, linux, networking, pytorch\n")
+
+    skills = []
+    print("Enter at least 3 skills (type one per line, press Enter):")
+    print("   Type 'done' when finished.\n")
+
+    while True:
+        skill = input(f"   Skill {len(skills) + 1}: ").strip().lower().replace(" ", "_")
+        if skill == "done":
+            if len(skills) < 3:
+                print(f" Please enter at least 3 skills. ({len(skills)}/3 entered)")
+                continue
+            break
+        if skill:
+            skills.append(skill)
+            print(f"   ✅ Added: {skill}")
+
+    return skills
+
+# ============================================================
+# STEP 2: VECTOR MAPPING — Build shared vocabulary space
+# Both user profile and job roles mapped to same TF-IDF space
+# ============================================================
+
+def build_recommendation_engine(user_skills):
+    # Create user profile string from skills list
+    user_profile = " ".join(user_skills)
+
+    # Combine user profile with all job role skill strings
+    all_documents = [user_profile] + list(df_roles["skills"])
+
+    # TF-IDF Vectorization
+    # Penalizes generic words, rewards specific/unique ones
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(all_documents)
+
+    # User vector is the first row
+    user_vector = tfidf_matrix[0]
+
+    # Job role vectors are rows 1 onwards
+    role_vectors = tfidf_matrix[1:]
+
+    return user_vector, role_vectors, vectorizer
+
+# ============================================================
+# STEP 3: SCORING — Cosine Similarity
+# Measures angular alignment between user and each role
+# Score 1 = perfect match | Score 0 = no common skills
+# ============================================================
+
+def score_roles(user_vector, role_vectors):
+    scores = cosine_similarity(user_vector, role_vectors)[0]
+    return scores
+
+# ============================================================
+# STEP 4: SORTING + FILTERING — Top-N List
+# Sort descending, truncate to prevent choice overload
+# ============================================================
+
+def get_top_recommendations(scores, top_n=5):
+    df_results = df_roles.copy()
+    df_results["similarity_score"] = scores
+    df_results["match_percent"] = (scores * 100).round(2)
+
+    # Sort descending (highest match first)
+    df_results = df_results.sort_values("similarity_score", ascending=False)
+
+    # Filter — Top N only
+    return df_results.head(top_n)
+
+# ============================================================
+# STEP 5: DISPLAY RESULTS
+# ============================================================
+
+def display_recommendations(top_roles, user_skills):
+    print("\n" + "=" * 60)
+    print(" YOUR TOP CAREER RECOMMENDATIONS")
+    print("=" * 60)
+    print(f"\n  Your Skills: {', '.join(user_skills)}\n")
+
+    for rank, (_, row) in enumerate(top_roles.iterrows(), 1):
+        bar_len = int(row["match_percent"] / 5)
+        bar = "█" * bar_len + "░" * (20 - bar_len)
+        print(f"  #{rank}  {row['title']}")
+        print(f"      Match: [{bar}] {row['match_percent']}%")
+        print(f"      Skills: {row['skills'][:60]}...")
+        print()
+
+# ============================================================
+# STEP 6: VISUALIZATION
+# ============================================================
+
+def visualize_results(top_roles, user_skills, all_scores):
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig.suptitle(
+        "Project 3 — AI Tech Stack Recommender | DecodeLabs",
+        fontsize=13, fontweight="bold"
+    )
+
+    # --- Plot 1: Top 5 Recommendations Bar Chart ---
+    colors = ["#2ecc71" if i == 0 else "#3498db" if i == 1
+              else "#e67e22" if i == 2 else "#95a5a6"
+              for i in range(len(top_roles))]
+
+    bars = axes[0].barh(
+        top_roles["title"][::-1],
+        top_roles["match_percent"][::-1],
+        color=colors[::-1],
+        edgecolor="white",
+        linewidth=0.5
+    )
+    axes[0].set_xlabel("Match Score (%)")
+    axes[0].set_title("Top Career Recommendations")
+    axes[0].set_xlim(0, 100)
+    axes[0].grid(axis="x", alpha=0.3)
+
+    for bar, val in zip(bars, top_roles["match_percent"][::-1]):
+        axes[0].text(
+            bar.get_width() + 1, bar.get_y() + bar.get_height() / 2,
+            f"{val:.1f}%", va="center", fontsize=9, fontweight="bold"
+        )
+
+    # --- Plot 2: All Roles Similarity Heatmap ---
+    all_scores_df = df_roles.copy()
+    all_scores_df["score"] = (
+        cosine_similarity(
+            TfidfVectorizer()
+            .fit_transform([" ".join(user_skills)] + list(df_roles["skills"]))[0],
+            TfidfVectorizer()
+            .fit_transform([" ".join(user_skills)] + list(df_roles["skills"]))[1:]
+        )[0] * 100
+    ).round(1)
+
+    all_scores_df = all_scores_df.sort_values("score", ascending=False)
+    heatmap_data = all_scores_df[["title", "score"]].set_index("title")
+
+    sns.heatmap(
+        heatmap_data,
+        annot=True, fmt=".1f",
+        cmap="YlOrRd",
+        ax=axes[1],
+        linewidths=0.5,
+        cbar_kws={"label": "Match %"}
+    )
+    axes[1].set_title("All Roles — Similarity Heatmap")
+    axes[1].set_xlabel("")
+    axes[1].set_ylabel("")
+
+    plt.tight_layout()
+    plt.savefig("project3_recommendations.png", dpi=150, bbox_inches="tight")
+    plt.show()
+    print("Visualization saved → project3_recommendations.png")
+
+# ============================================================
+# MAIN — Run the full pipeline
+# ============================================================
+
+def main():
+    # STEP 1: Ingestion
+    user_skills = get_user_skills()
+
+    print(f"\nBuilding recommendation engine for: {user_skills}")
+
+    # STEP 2: Vector Mapping (TF-IDF)
+    user_vector, role_vectors, vectorizer = build_recommendation_engine(user_skills)
+    print("TF-IDF vectors built successfully")
+
+    # STEP 3: Scoring (Cosine Similarity)
+    scores = score_roles(user_vector, role_vectors)
+    print("Cosine similarity scores calculated")
+
+    # STEP 4: Sorting + Filtering (Top 5)
+    top_roles = get_top_recommendations(scores, top_n=5)
+    print("Results sorted and filtered (Top 5)")
+
+    # STEP 5: Display
+    display_recommendations(top_roles, user_skills)
+
+    # STEP 6: Visualize
+    visualize_results(top_roles, user_skills, scores)
+
+
+
+
+if __name__ == "__main__":
+    main()
